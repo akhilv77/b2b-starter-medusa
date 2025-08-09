@@ -9,12 +9,14 @@ import {
 } from "@medusajs/ui";
 import { useState, useRef } from "react";
 import { useImportCustomers, ImportCustomerData } from "../../../hooks/api/customer-import";
+import { Skeleton } from "../../../components/common/skeleton";
 
 export function CustomerImportForm() {
   const [customers, setCustomers] = useState<ImportCustomerData[]>([]);
   const [csvText, setCsvText] = useState("");
   const [jsonText, setJsonText] = useState("");
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
+  const [isParsingFile, setIsParsingFile] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const {
@@ -75,11 +77,17 @@ export function CustomerImportForm() {
     const file = event.target.files?.[0];
     if (!file) return;
 
+    setIsParsingFile(true);
     const reader = new FileReader();
     reader.onload = (e) => {
       const content = e.target?.result as string;
       setCsvText(content);
       handleCSVParse(content);
+      setIsParsingFile(false);
+    };
+    reader.onerror = () => {
+      setIsParsingFile(false);
+      setValidationErrors(['Failed to read file. Please try again.']);
     };
     reader.readAsText(file);
   };
@@ -88,17 +96,21 @@ export function CustomerImportForm() {
     const content = csvContent || csvText;
     if (!content.trim()) return;
 
+    setIsParsingFile(true);
     try {
       const parsedCustomers = parseCSV(content);
       validateAndSetCustomers(parsedCustomers);
     } catch (error) {
       setValidationErrors(['Failed to parse CSV. Please check the format.']);
+    } finally {
+      setIsParsingFile(false);
     }
   };
 
   const handleJSONParse = () => {
     if (!jsonText.trim()) return;
 
+    setIsParsingFile(true);
     try {
       const parsedCustomers = JSON.parse(jsonText);
       if (!Array.isArray(parsedCustomers)) {
@@ -108,6 +120,8 @@ export function CustomerImportForm() {
       validateAndSetCustomers(parsedCustomers);
     } catch (error) {
       setValidationErrors(['Invalid JSON format']);
+    } finally {
+      setIsParsingFile(false);
     }
   };
 
@@ -272,6 +286,8 @@ export function CustomerImportForm() {
                   variant="secondary"
                   size="base"
                   onClick={() => handleCSVParse()}
+                  isLoading={isParsingFile}
+                  disabled={!csvText.trim() || isParsingFile}
                 >
                   Parse CSV
                 </Button>
@@ -301,6 +317,8 @@ export function CustomerImportForm() {
                     variant="secondary"
                     size="base"
                     onClick={handleJSONParse}
+                    isLoading={isParsingFile}
+                    disabled={!jsonText.trim() || isParsingFile}
                   >
                     Parse JSON
                   </Button>
@@ -309,6 +327,7 @@ export function CustomerImportForm() {
                     variant="secondary"
                     size="base"
                     onClick={addSampleData}
+                    disabled={isParsingFile}
                   >
                     Add Sample Data
                   </Button>
@@ -333,40 +352,67 @@ export function CustomerImportForm() {
         </div>
       )}
 
-      {customers.length > 0 && (
+      {(customers.length > 0 || isParsingFile) && (
         <div className="space-y-6">
           <div className="flex items-center justify-between">
-            <Text className="txt-medium-plus">
-              Preview ({customers.length} customer{customers.length > 1 ? 's' : ''})
-            </Text>
+            {isParsingFile ? (
+              <Skeleton className="h-6 w-48" />
+            ) : (
+              <Text className="txt-medium-plus">
+                Preview ({customers.length} customer{customers.length > 1 ? 's' : ''})
+              </Text>
+            )}
           </div>
           
           <div className="rounded-md border border-ui-border-base overflow-hidden">
             <div className="overflow-x-auto">
-              <Table>
-                <Table.Header>
-                  <Table.Row>
-                    <Table.HeaderCell className="txt-compact-small-plus">First Name</Table.HeaderCell>
-                    <Table.HeaderCell className="txt-compact-small-plus">Last Name</Table.HeaderCell>
-                    <Table.HeaderCell className="txt-compact-small-plus">Email</Table.HeaderCell>
-                    <Table.HeaderCell className="txt-compact-small-plus">Company</Table.HeaderCell>
-                    <Table.HeaderCell className="txt-compact-small-plus">Phone</Table.HeaderCell>
-                  </Table.Row>
-                </Table.Header>
-                <Table.Body>
-                  {customers.slice(0, 10).map((customer, index) => (
-                    <Table.Row key={index}>
-                      <Table.Cell className="txt-compact-small">{customer.first_name}</Table.Cell>
-                      <Table.Cell className="txt-compact-small">{customer.last_name}</Table.Cell>
-                      <Table.Cell className="txt-compact-small">{customer.email}</Table.Cell>
-                      <Table.Cell className="txt-compact-small text-ui-fg-subtle">{customer.company_name || '-'}</Table.Cell>
-                      <Table.Cell className="txt-compact-small text-ui-fg-subtle">{customer.phone || '-'}</Table.Cell>
+              {isParsingFile ? (
+                <div className="p-6">
+                  <div className="space-y-4">
+                    <div className="flex gap-4">
+                      <Skeleton className="h-6 w-20" />
+                      <Skeleton className="h-6 w-20" />
+                      <Skeleton className="h-6 w-32" />
+                      <Skeleton className="h-6 w-24" />
+                      <Skeleton className="h-6 w-20" />
+                    </div>
+                    {Array.from({ length: 3 }, (_, i) => (
+                      <div key={i} className="flex gap-4">
+                        <Skeleton className="h-4 w-20" />
+                        <Skeleton className="h-4 w-20" />
+                        <Skeleton className="h-4 w-32" />
+                        <Skeleton className="h-4 w-24" />
+                        <Skeleton className="h-4 w-20" />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <Table>
+                  <Table.Header>
+                    <Table.Row>
+                      <Table.HeaderCell className="txt-compact-small-plus">First Name</Table.HeaderCell>
+                      <Table.HeaderCell className="txt-compact-small-plus">Last Name</Table.HeaderCell>
+                      <Table.HeaderCell className="txt-compact-small-plus">Email</Table.HeaderCell>
+                      <Table.HeaderCell className="txt-compact-small-plus">Company</Table.HeaderCell>
+                      <Table.HeaderCell className="txt-compact-small-plus">Phone</Table.HeaderCell>
                     </Table.Row>
-                  ))}
-                </Table.Body>
-              </Table>
+                  </Table.Header>
+                  <Table.Body>
+                    {customers.slice(0, 10).map((customer, index) => (
+                      <Table.Row key={index}>
+                        <Table.Cell className="txt-compact-small">{customer.first_name}</Table.Cell>
+                        <Table.Cell className="txt-compact-small">{customer.last_name}</Table.Cell>
+                        <Table.Cell className="txt-compact-small">{customer.email}</Table.Cell>
+                        <Table.Cell className="txt-compact-small text-ui-fg-subtle">{customer.company_name || '-'}</Table.Cell>
+                        <Table.Cell className="txt-compact-small text-ui-fg-subtle">{customer.phone || '-'}</Table.Cell>
+                      </Table.Row>
+                    ))}
+                  </Table.Body>
+                </Table>
+              )}
             </div>
-            {customers.length > 10 && (
+            {!isParsingFile && customers.length > 10 && (
               <div className="p-3 bg-ui-bg-subtle text-center txt-compact-small text-ui-fg-subtle">
                 ... and {customers.length - 10} more customers
               </div>
@@ -387,10 +433,10 @@ export function CustomerImportForm() {
         <Button
           onClick={handleSubmit}
           isLoading={isPending}
-          disabled={customers.length === 0 || validationErrors.length > 0}
+          disabled={customers.length === 0 || validationErrors.length > 0 || isParsingFile || isPending}
           size="base"
         >
-          Import {customers.length} Customer{customers.length > 1 ? 's' : ''}
+          {isPending ? 'Importing...' : `Import ${customers.length} Customer${customers.length > 1 ? 's' : ''}`}
         </Button>
       </div>
     </div>
